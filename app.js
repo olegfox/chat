@@ -1,12 +1,16 @@
 var express = require('express');
+var config = require('config');
 var path = require('path');
 var favicon = require('static-favicon');
 var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
+var mongoose = require('lib/mongoose');
+var expressSession = require('express-session');
+var errorHandler = require('express-error-handler');
+var MongoStore = require('connect-mongo/es5')(expressSession);
 
 var routes = require('./routes/index');
-var users = require('./routes/users');
 var HttpError = require('error').HttpError;
 
 var app = express();
@@ -24,10 +28,17 @@ app.use(bodyParser.urlencoded());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.use(expressSession({
+    "secret": config.get('session:secret'),
+    "key": config.get('session:key'),
+    "cookie": config.get('session:coookie'),
+    "store": new MongoStore({mongooseConnection: mongoose.connection})
+})); ;
+
 app.use(require('middleware/sendHttpError'));
+app.use(require('middleware/loadUser'));
 
 app.use('/', routes);
-app.use('/users', users);
 
 /// catch 404 and forwarding to error handler
 app.use(function(err, req, res, next) {
@@ -39,7 +50,7 @@ app.use(function(err, req, res, next) {
         res.sendHttpError(err);
     } else {
         if (app.get('env') == 'development') {
-            express.errorHandler()(err, req, res, next);
+            errorHandler()(err, req, res, next);
         } else {
             log.error(err);
             err = new HttpError(500);
